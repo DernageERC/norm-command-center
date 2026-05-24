@@ -1,16 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import LiveMap from './components/LiveMap';
 
-type SocialLinks = {
-  instagram: string;
-  x: string;
-  linkedin: string;
-  website: string;
-};
-
+type SocialLinks = { instagram: string; x: string; linkedin: string; website: string };
 type Profile = {
   id: string;
   realName: string;
@@ -24,10 +17,8 @@ type Profile = {
   cuesEnabled: boolean;
   socials: SocialLinks;
 };
-
 type Coordinates = { lat: number; lng: number; accuracy?: number };
-
-type NetworkPerson = {
+type Person = {
   id: string;
   realName: string;
   phone?: string;
@@ -36,15 +27,12 @@ type NetworkPerson = {
   building: string;
   locationLabel: string;
   tags: string[];
-  socials?: Partial<SocialLinks>;
   lat?: number;
   lng?: number;
   distanceMiles?: number | null;
   updatedAt?: number;
-  isSeed?: boolean;
 };
-
-type ConnectionRequest = {
+type Connection = {
   id: string;
   fromId: string;
   toId: string;
@@ -58,30 +46,13 @@ type ConnectionRequest = {
   message: string;
   createdAt: number;
 };
-
-type ChatMessage = {
-  id: string;
-  conversationId: string;
-  fromId: string;
-  toId: string;
-  fromName: string;
-  body: string;
-  createdAt: number;
-};
-
-type Contact = {
-  id: string;
-  name: string;
-  phone: string;
-  building: string;
-  signal: string;
-};
+type Chat = { id: string; conversationId: string; fromId: string; toId: string; fromName: string; body: string; createdAt: number };
+type Contact = { id: string; name: string; phone: string; building: string; signal: string };
+type Tab = 'home' | 'map' | 'connections';
 
 const PROFILE_KEY = 'norm-network-profile';
 const LAST_LOCATION_KEY = 'norm-network-last-location';
-
 const emptySocials: SocialLinks = { instagram: '', x: '', linkedin: '', website: '' };
-
 const defaultProfile: Profile = {
   id: '',
   realName: '',
@@ -95,73 +66,21 @@ const defaultProfile: Profile = {
   cuesEnabled: true,
   socials: emptySocials
 };
-
-const seedPeople: NetworkPerson[] = [
-  {
-    id: 'seed-mia',
-    realName: 'Mia Torres',
-    phone: '+1 (305) 555-0198',
-    signal: 'Founder',
-    bio: 'Building a local founder circle for Miami creators.',
-    building: 'A pop-up network for founders, artists, and operators.',
-    locationLabel: 'Miami coffee shop',
-    tags: ['Startups', 'Design', 'Miami'],
-    socials: { instagram: '@mia.builds', linkedin: 'linkedin.com/in/miatorres' },
-    distanceMiles: 0.4,
-    isSeed: true
-  },
-  {
-    id: 'seed-jay',
-    realName: 'Jay Carter',
-    phone: '+1 (786) 555-0144',
-    signal: 'Hardware',
-    bio: 'Prototyping wearables, sensors, and physical interfaces.',
-    building: 'A BLE wristband that turns real-world connection on and off.',
-    locationLabel: 'Coworking lobby',
-    tags: ['Hardware', 'BLE', 'Product'],
-    socials: { x: '@jaymakes' },
-    distanceMiles: 0.9,
-    isSeed: true
-  },
-  {
-    id: 'seed-nova',
-    realName: 'Nova Ellis',
-    phone: '+1 (954) 555-0181',
-    signal: 'AI Creative',
-    bio: 'Making immersive visuals and AI-assisted experiences.',
-    building: 'A cinematic AI studio for brands and music artists.',
-    locationLabel: 'Hotel lobby',
-    tags: ['AI', 'Creative', 'Video'],
-    socials: { website: 'nova.studio' },
-    distanceMiles: 1.3,
-    isSeed: true
-  },
-  {
-    id: 'seed-cam',
-    realName: 'Cam Reed',
-    phone: '+1 (561) 555-0102',
-    signal: 'Operator',
-    bio: 'Connects builders, investors, and local event people.',
-    building: 'A private calendar of high-signal local gatherings.',
-    locationLabel: 'Tech week event',
-    tags: ['Events', 'Ops', 'Network'],
-    socials: { linkedin: 'linkedin.com/in/camreed' },
-    distanceMiles: 2.1,
-    isSeed: true
-  }
+const tabData: Array<{ id: Tab; label: string; detail: string }> = [
+  { id: 'home', label: 'Home', detail: 'Signal' },
+  { id: 'map', label: 'Map', detail: 'Connect' },
+  { id: 'connections', label: 'Connections', detail: 'Chat / Profile' }
 ];
 
 function createId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `norm-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
-
 function cleanTags(value: string | string[]) {
   const raw = Array.isArray(value) ? value : value.split(',');
   return raw.map((tag) => tag.trim()).filter(Boolean).slice(0, 8);
 }
-
-function normalizeProfile(input: Partial<Profile> & { name?: string; status?: string }): Profile {
+function normalize(input: Partial<Profile> & { name?: string; status?: string }): Profile {
   return {
     ...defaultProfile,
     ...input,
@@ -169,52 +88,36 @@ function normalizeProfile(input: Partial<Profile> & { name?: string; status?: st
     realName: input.realName || input.name || '',
     building: input.building || input.status || '',
     tags: Array.isArray(input.tags) ? cleanTags(input.tags) : defaultProfile.tags,
-    radius: Number(input.radius) || defaultProfile.radius,
+    radius: Number(input.radius) || 5,
     socials: { ...emptySocials, ...(input.socials || {}) }
   };
 }
-
-function isProfileComplete(profile: Profile) {
+function complete(profile: Profile) {
   return Boolean(profile.id && profile.realName.trim() && profile.phone.trim() && profile.bio.trim() && profile.building.trim() && profile.locationLabel.trim());
 }
-
-function formatDistance(miles?: number | null) {
+function distanceText(miles?: number | null) {
   if (miles === null || miles === undefined) return 'nearby';
   if (miles < 0.1) return 'right here';
   if (miles < 1) return `${Math.round(miles * 5280)} ft`;
   return `${miles.toFixed(1)} mi`;
 }
-
-function timeAgo(timestamp?: number) {
-  if (!timestamp) return 'demo';
-  const seconds = Math.max(1, Math.floor((Date.now() - timestamp) / 1000));
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  return `${Math.floor(minutes / 60)}h ago`;
+function timeText(timestamp?: number) {
+  if (!timestamp) return 'new';
+  const minutes = Math.floor(Math.max(1, Date.now() - timestamp) / 60000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
 }
-
-function getBrowserPosition(): Promise<Coordinates> {
+function getPosition(): Promise<Coordinates> {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject(new Error('This browser does not support location yet.'));
-      return;
-    }
-
+    if (!('geolocation' in navigator)) return reject(new Error('This browser does not support location yet.'));
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        });
-      },
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy }),
       () => reject(new Error('Location permission was blocked or timed out.')),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 45000 }
     );
   });
 }
-
 async function live<T>(payload: Record<string, unknown>) {
   const response = await fetch('/api/live', {
     method: 'POST',
@@ -222,108 +125,107 @@ async function live<T>(payload: Record<string, unknown>) {
     body: JSON.stringify(payload),
     cache: 'no-store'
   });
-
   const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || 'Norm live action failed.');
+  if (!response.ok) throw new Error(data.error || 'Norm action failed.');
   return data;
+}
+function PenroseLogo() {
+  return (
+    <svg className='penroseLogo' viewBox='0 0 100 88' aria-hidden='true'>
+      <path className='penroseWhite' d='M50 4 96 82H75L50 39 25 82H4L50 4Z' />
+      <path className='penroseBlack' d='M50 29 73 68H62L50 49 38 68H27L50 29Z' />
+      <path className='penroseCut' d='M50 4 63 25 29 82H4L50 4Z' />
+      <path className='penroseStroke' d='M50 4 96 82H75L50 39 25 82H4L50 4Z' />
+    </svg>
+  );
 }
 
 export default function Home() {
+  const [tab, setTab] = useState<Tab>('home');
   const [profile, setProfile] = useState<Profile>(defaultProfile);
-  const [hasProfile, setHasProfile] = useState(false);
+  const [ready, setReady] = useState(false);
   const [location, setLocation] = useState<Coordinates | null>(null);
-  const [isDiscoverable, setIsDiscoverable] = useState(false);
-  const [nearby, setNearby] = useState<NetworkPerson[]>([]);
-  const [incoming, setIncoming] = useState<ConnectionRequest[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [chatDraft, setChatDraft] = useState('');
-  const [connectionLog, setConnectionLog] = useState<string[]>([]);
-  const [showSeeds, setShowSeeds] = useState(true);
+  const [liveOn, setLiveOn] = useState(false);
+  const [nearby, setNearby] = useState<Person[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [selected, setSelected] = useState<Contact | null>(null);
+  const [messages, setMessages] = useState<Chat[]>([]);
+  const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('You are private. Flip the switch when you want to be found.');
+  const [notice, setNotice] = useState('Private by default. Turn on when you are ready to be found.');
   const [error, setError] = useState('');
-  const seenConnectionIds = useRef<Set<string>>(new Set());
+  const seen = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const savedProfile = window.localStorage.getItem(PROFILE_KEY);
+    const saved = window.localStorage.getItem(PROFILE_KEY);
     const savedLocation = window.localStorage.getItem(LAST_LOCATION_KEY);
-
-    if (savedProfile) {
+    if (saved) {
       try {
-        const parsed = JSON.parse(savedProfile) as Partial<Profile> & { name?: string; status?: string };
-        const next = normalizeProfile(parsed);
+        const next = normalize(JSON.parse(saved) as Partial<Profile>);
         setProfile(next);
-        setHasProfile(isProfileComplete(next));
+        setReady(complete(next));
       } catch {
         window.localStorage.removeItem(PROFILE_KEY);
-        const next = { ...defaultProfile, id: createId() };
-        setProfile(next);
+        setProfile({ ...defaultProfile, id: createId() });
       }
     } else {
       setProfile({ ...defaultProfile, id: createId() });
     }
-
     if (savedLocation) {
-      try {
-        setLocation(JSON.parse(savedLocation) as Coordinates);
-      } catch {
-        window.localStorage.removeItem(LAST_LOCATION_KEY);
-      }
+      try { setLocation(JSON.parse(savedLocation) as Coordinates); } catch { window.localStorage.removeItem(LAST_LOCATION_KEY); }
     }
   }, []);
 
   useEffect(() => {
     if (profile.id) window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    setHasProfile(isProfileComplete(profile));
+    setReady(complete(profile));
   }, [profile]);
 
-  const peopleForDisplay = useMemo(() => {
-    const livePeople = nearby.filter((person) => person.id !== profile.id);
-    const seeds = showSeeds ? seedPeople : [];
-    return [...livePeople, ...seeds].slice(0, 12);
-  }, [nearby, profile.id, showSeeds]);
-
+  const people = useMemo(() => nearby.filter((person) => person.id !== profile.id).slice(0, 20), [nearby, profile.id]);
   const contacts = useMemo<Contact[]>(() => {
     const map = new Map<string, Contact>();
-
-    incoming.forEach((connection) => {
-      const isSender = connection.fromId === profile.id;
-      const id = isSender ? connection.toId : connection.fromId;
-      const name = isSender ? connection.toName : connection.fromName;
-      const phone = isSender ? connection.toPhone : connection.fromPhone;
-      const building = isSender ? 'Connected through Norm' : connection.fromBuilding;
-      const signal = isSender ? 'Connection' : connection.fromSignal;
-
-      if (id && id !== profile.id) {
-        map.set(id, { id, name, phone, building, signal });
-      }
+    connections.forEach((item) => {
+      const sender = item.fromId === profile.id;
+      const id = sender ? item.toId : item.fromId;
+      if (!id || id === profile.id) return;
+      map.set(id, {
+        id,
+        name: sender ? item.toName : item.fromName,
+        phone: sender ? item.toPhone : item.fromPhone,
+        building: sender ? 'Connected through Norm' : item.fromBuilding,
+        signal: sender ? 'Connection' : item.fromSignal
+      });
     });
-
     return Array.from(map.values());
-  }, [incoming, profile.id]);
+  }, [connections, profile.id]);
+  const missing = [
+    profile.realName.trim() ? '' : 'name',
+    profile.phone.trim() ? '' : 'contact',
+    profile.bio.trim() ? '' : 'bio',
+    profile.building.trim() ? '' : 'build',
+    profile.locationLabel.trim() ? '' : 'location'
+  ].filter(Boolean);
+  const completion = Math.round(((5 - missing.length) / 5) * 100);
+  const socials = Object.entries(profile.socials).filter(([, value]) => value);
 
-  const liveCount = nearby.filter((person) => !person.isSeed).length;
-
-  const cue = useCallback((title: string, body?: string) => {
+  function update<K extends keyof Profile>(key: K, value: Profile[K]) {
+    setProfile((current) => ({ ...current, [key]: value }));
+  }
+  function updateSocial(key: keyof SocialLinks, value: string) {
+    setProfile((current) => ({ ...current, socials: { ...current.socials, [key]: value } }));
+  }
+  function cue(title: string, body?: string) {
     if (profile.cuesEnabled && 'vibrate' in navigator) navigator.vibrate([55, 45, 55]);
-
     if (profile.cuesEnabled && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(title, { body: body || 'Norm Network' });
-      } catch {
-        // Browser notifications are best effort.
-      }
+      try { new Notification(title, { body: body || 'Norm Network' }); } catch {}
     }
-  }, [profile.cuesEnabled]);
-
+  }
   async function enableCues() {
     if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
     setProfile((current) => ({ ...current, cuesEnabled: true }));
-    cue('Norm cues enabled', 'Connection pings can now appear as browser notifications.');
+    cue('Norm cues enabled');
   }
-
-  async function publishPresence(nextLocation: Coordinates, nextProfile = profile) {
+  async function publish(nextLocation: Coordinates, nextProfile = profile) {
     await live<{ ok: boolean }>({
       action: 'publish',
       id: nextProfile.id,
@@ -340,148 +242,71 @@ export default function Home() {
       lng: nextLocation.lng
     });
   }
-
-  async function refreshNearby(nextLocation = location, nextProfile = profile) {
+  async function refresh(nextLocation = location, nextProfile = profile) {
     if (!nextLocation || !nextProfile.id) return;
-
-    const data = await live<{ people?: NetworkPerson[] }>({
+    const data = await live<{ people?: Person[] }>({
       action: 'nearby',
       lat: nextLocation.lat,
       lng: nextLocation.lng,
       radius: nextProfile.radius,
       exclude: nextProfile.id
     });
-
     setNearby(data.people || []);
   }
-
-  async function refreshIncoming(id = profile.id) {
+  async function refreshInbox(id = profile.id) {
     if (!id) return;
-
-    const data = await live<{ requests?: ConnectionRequest[] }>({ action: 'inbox', id });
-    const requests = data.requests || [];
-
-    requests.forEach((request) => {
-      if (!seenConnectionIds.current.has(request.id)) {
-        seenConnectionIds.current.add(request.id);
-        if (request.toId === id && request.fromId !== id) cue('New Norm connection', `${request.fromName} shared their phone with you.`);
+    const data = await live<{ requests?: Connection[] }>({ action: 'inbox', id });
+    const rows = data.requests || [];
+    rows.forEach((row) => {
+      if (!seen.current.has(row.id)) {
+        seen.current.add(row.id);
+        if (row.toId === id && row.fromId !== id) cue('New Norm connection', `${row.fromName} connected with you.`);
       }
     });
-
-    setIncoming(requests);
+    setConnections(rows);
   }
-
-  useEffect(() => {
-    if (!isDiscoverable || !location || !profile.id || !hasProfile) return;
-
-    const activeLocation: Coordinates = location;
-    const activeProfile: Profile = profile;
-    let cancelled = false;
-
-    async function heartbeat() {
-      try {
-        await publishPresence(activeLocation, activeProfile);
-        if (!cancelled) {
-          await refreshNearby(activeLocation, activeProfile);
-          await refreshIncoming(activeProfile.id);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Norm could not refresh presence.');
-      }
-    }
-
-    void heartbeat();
-    const interval = window.setInterval(() => void heartbeat(), 7000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [isDiscoverable, location, profile, hasProfile]);
-
-  useEffect(() => {
-    if (!selectedContact || !profile.id) return;
-    let cancelled = false;
-
-    async function loadChat() {
-      try {
-        const data = await live<{ messages?: ChatMessage[] }>({ action: 'chat:get', a: profile.id, b: selectedContact.id });
-        if (!cancelled) setChatMessages(data.messages || []);
-      } catch {
-        if (!cancelled) setChatMessages([]);
-      }
-    }
-
-    void loadChat();
-    const interval = window.setInterval(() => void loadChat(), 6000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [selectedContact, profile.id]);
-
-  async function turnOn(useDemoLocation = false) {
+  async function turnOn() {
     setBusy(true);
     setError('');
-
     try {
-      if (!hasProfile) throw new Error('Create your Norm profile before going discoverable.');
-      const nextLocation = useDemoLocation ? { lat: 25.7617, lng: -80.1918, accuracy: 100 } : await getBrowserPosition();
+      if (!ready) throw new Error('Complete your profile before going live.');
+      const nextLocation = await getPosition();
       setLocation(nextLocation);
       window.localStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(nextLocation));
-
-      await publishPresence(nextLocation, profile);
-      await refreshNearby(nextLocation, profile);
-      await refreshIncoming(profile.id);
-
-      setIsDiscoverable(true);
-      setMessage('You are discoverable. Norm is showing nearby signals on the live map.');
-      cue('Norm is on', 'You are discoverable to nearby builders.');
+      await publish(nextLocation, profile);
+      await refresh(nextLocation, profile);
+      await refreshInbox(profile.id);
+      setLiveOn(true);
+      setNotice('You are live. Nearby people can find your signal and connect.');
+      cue('Norm is on');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not turn Norm on.');
-      setMessage('Norm stayed private. Finish signup and allow location to publish your signal.');
+      setNotice('Norm stayed private. Complete your profile and allow location when ready.');
     } finally {
       setBusy(false);
     }
   }
-
   async function turnOff() {
-    setIsDiscoverable(false);
+    setLiveOn(false);
     setNearby([]);
-    setMessage('You are private. Nobody can discover your Norm signal.');
+    setNotice('You are private. Nobody can discover your Norm signal.');
     setError('');
-
     if (profile.id) await live<{ ok: boolean }>({ action: 'disconnect', id: profile.id }).catch(() => undefined);
   }
-
-  async function connectTo(person: NetworkPerson) {
+  async function toggle() {
+    if (!ready) {
+      setTab('connections');
+      setNotice('Finish your profile first, then turn on from Home.');
+      return;
+    }
+    if (liveOn) await turnOff();
+    else await turnOn();
+  }
+  async function connect(person: Person) {
     setError('');
-
     try {
-      if (!hasProfile) throw new Error('Create your profile before connecting.');
-
-      if (person.isSeed) {
-        const fakeConnection: ConnectionRequest = {
-          id: `demo-${person.id}-${Date.now()}`,
-          fromId: profile.id,
-          toId: person.id,
-          fromName: profile.realName,
-          fromPhone: profile.phone,
-          fromBuilding: profile.building,
-          fromSignal: profile.signal,
-          fromSocials: profile.socials,
-          toName: person.realName,
-          toPhone: person.phone || '',
-          message: `${profile.realName} connected with ${person.realName}. Phone numbers are now shared in demo mode.`,
-          createdAt: Date.now()
-        };
-        setIncoming((current) => [fakeConnection, ...current]);
-        setSelectedContact({ id: person.id, name: person.realName, phone: person.phone || '', building: person.building, signal: person.signal });
-        cue('Demo contact saved', `${person.realName}'s phone is now visible in your contacts.`);
-        return;
-      }
-
-      const data = await live<{ connection: ConnectionRequest }>({
+      if (!ready) throw new Error('Complete your profile before connecting.');
+      const data = await live<{ connection: Connection }>({
         action: 'connect',
         fromId: profile.id,
         toId: person.id,
@@ -491,210 +316,149 @@ export default function Home() {
         fromSignal: profile.signal,
         fromSocials: profile.socials,
         toName: person.realName,
-        message: `${profile.realName} connected with you on Norm. Phone numbers are now shared.`
+        message: `${profile.realName} connected with you on Norm.`
       });
-
-      setIncoming((current) => [data.connection, ...current.filter((item) => item.id !== data.connection.id)]);
-      setSelectedContact({ id: person.id, name: person.realName, phone: data.connection.toPhone, building: person.building, signal: person.signal });
-      cue('Connection sent', `${person.realName} received your Norm ping.`);
+      setConnections((current) => [data.connection, ...current.filter((item) => item.id !== data.connection.id)]);
+      setSelected({ id: person.id, name: person.realName, phone: data.connection.toPhone, building: person.building, signal: person.signal });
+      setTab('connections');
+      cue('Connection sent', `${person.realName} received your ping.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not connect.');
     }
   }
-
-  async function sendChat() {
-    if (!selectedContact || !chatDraft.trim()) return;
-
-    const body = chatDraft.trim();
-    setChatDraft('');
-
+  async function send() {
+    if (!selected || !draft.trim()) return;
+    const body = draft.trim();
+    setDraft('');
     try {
-      const data = await live<{ message: ChatMessage }>({
-        action: 'chat:send',
-        fromId: profile.id,
-        toId: selectedContact.id,
-        fromName: profile.realName,
-        body
-      });
-      setChatMessages((current) => [...current, data.message]);
+      const data = await live<{ message: Chat }>({ action: 'chat:send', fromId: profile.id, toId: selected.id, fromName: profile.realName, body });
+      setMessages((current) => [...current, data.message]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Message failed.');
     }
   }
 
-  const socialEntries = Object.entries(profile.socials).filter(([, value]) => value);
+  useEffect(() => {
+    if (!liveOn || !location || !profile.id || !ready) return;
+    const activeLocation = location;
+    const activeProfile = profile;
+    let cancelled = false;
+    async function heartbeat() {
+      try {
+        await publish(activeLocation, activeProfile);
+        if (!cancelled) {
+          await refresh(activeLocation, activeProfile);
+          await refreshInbox(activeProfile.id);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Norm could not refresh presence.');
+      }
+    }
+    void heartbeat();
+    const interval = window.setInterval(() => void heartbeat(), 7000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [liveOn, location, profile, ready]);
+
+  useEffect(() => {
+    if (!selected || !profile.id) return;
+    let cancelled = false;
+    async function loadChat() {
+      try {
+        const data = await live<{ messages?: Chat[] }>({ action: 'chat:get', a: profile.id, b: selected.id });
+        if (!cancelled) setMessages(data.messages || []);
+      } catch {
+        if (!cancelled) setMessages([]);
+      }
+    }
+    void loadChat();
+    const interval = window.setInterval(() => void loadChat(), 6000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [selected, profile.id]);
 
   return (
     <main className='shell'>
-      <nav className='topNav'>
-        <strong>Norm Network</strong>
-        <div>
-          <Link href='/signup'>{hasProfile ? 'Edit profile' : 'Sign up'}</Link>
-          <button className='tinyButton' onClick={() => void enableCues()}>Enable pings</button>
-        </div>
-      </nav>
+      <header className='appHeader'>
+        <div className='brandLockup'><PenroseLogo /><div><span>Norm Network</span><strong>real-world signal layer</strong></div></div>
+        <button className={`statusPill ${liveOn ? 'isLive' : ''}`} onClick={() => void toggle()}><span />{liveOn ? 'ON' : 'OFF'}</button>
+      </header>
 
-      {!hasProfile && (
-        <section className='signupGate'>
-          <div>
-            <span className='eyebrow'>Required profile</span>
-            <h2>Real names. Real location. Real connection.</h2>
-            <p>Create a Norm profile with real name, phone, bio, what you are building, and location label before turning on your signal.</p>
+      {error && <section className='errorBanner'><strong>Heads up</strong><span>{error}</span></section>}
+
+      {tab === 'home' && (
+        <section className='tabPanel'>
+          <div className='signalCard'>
+            <div className='signalIntro'><span className='eyebrow'>Home</span><h1>Turn the world on only when you mean it.</h1><p>{notice}</p></div>
+            <button className={`powerButton ${liveOn ? 'isOn' : ''}`} onClick={() => void toggle()} disabled={busy} aria-pressed={liveOn}>
+              <span className='powerRing'><span className='powerCore' /></span>
+              <strong>{busy ? '...' : liveOn ? 'On' : 'Off'}</strong>
+              <em>{ready ? (liveOn ? 'tap to go private' : 'tap to be discoverable') : 'complete profile first'}</em>
+            </button>
           </div>
-          <Link className='primaryButton linkButton' href='/signup'>Create profile</Link>
+          <div className='homeGrid'>
+            <article className='metricCard'><span>Live nearby</span><strong>{nearby.length}</strong><p>{liveOn ? 'signals inside your radius' : 'hidden until you turn on'}</p></article>
+            <article className='metricCard'><span>Radius</span><strong>{profile.radius} mi</strong><p>controlled from profile customization</p></article>
+            <article className='metricCard'><span>Connections</span><strong>{contacts.length}</strong><p>chat and direct contact exchange</p></article>
+          </div>
+          <div className='profileNudge'><div><span className='eyebrow'>Ready check</span><h2>{ready ? 'Your signal is ready.' : `${completion}% profile complete`}</h2><p>{ready ? 'Your profile is saved locally on this device.' : `Missing: ${missing.join(', ') || 'profile details'}.`}</p></div><button className='ghostButton' onClick={() => setTab('connections')}>Customize profile</button></div>
         </section>
       )}
 
-      <section className='hero'>
-        <div className='heroCopy'>
-          <div className='eyebrow'>Norm Network / live map MVP</div>
-          <h1>Find your people in the real world.</h1>
-          <p>
-            A Life360-style map for builders: turn your signal on, see nearby people, connect once,
-            and exchange phone numbers without feeds, clout, or endless scrolling.
-          </p>
-
-          <div className='heroActions'>
-            <button className='primaryButton' onClick={() => void turnOn(false)} disabled={busy || isDiscoverable}>
-              {busy ? 'Finding location...' : 'Turn location on'}
-            </button>
-            <button className='ghostButton' onClick={() => void turnOff()} disabled={!isDiscoverable}>Go private</button>
-            <button className='ghostButton' onClick={() => void turnOn(true)} disabled={busy}>Demo Miami</button>
-          </div>
-        </div>
-
-        <div className='deviceCard'>
-          <div className='deviceTop'>
-            <span>NORM SIGNAL</span>
-            <span className={isDiscoverable ? 'greenText' : 'muted'}>{isDiscoverable ? 'LIVE' : 'OFF'}</span>
-          </div>
-
-          <button
-            className={`switchButton ${isDiscoverable ? 'on' : ''}`}
-            onClick={() => (isDiscoverable ? void turnOff() : void turnOn(false))}
-            disabled={busy}
-            aria-pressed={isDiscoverable}
-          >
-            <span className='switchTrack'><span className='switchKnob' /></span>
-            <span>{isDiscoverable ? 'Discoverable ON' : 'Private OFF'}</span>
-          </button>
-
-          <p className='deviceMessage'>{message}</p>
-          {error && <div className='errorBox'><strong>Heads up:</strong> {error}</div>}
-
-          <div className='deviceStats'>
-            <div><strong>{liveCount}</strong><span>live nearby</span></div>
-            <div><strong>{profile.radius}mi</strong><span>radius</span></div>
-            <div><strong>{contacts.length}</strong><span>contacts</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section className='mapGrid'>
-        <div className='panel mapPanel'>
-          <div className='sectionHeader'>
-            <div><span className='eyebrow'>Live map</span><h2>Nearby builders</h2></div>
-            <label className='seedToggle'><input type='checkbox' checked={showSeeds} onChange={(event) => setShowSeeds(event.target.checked)} /> demo people</label>
-          </div>
-          <LiveMap selfLocation={location} people={peopleForDisplay} isDiscoverable={isDiscoverable} onSelectPerson={(person) => {
-            const found = peopleForDisplay.find((item) => item.id === person.id);
-            if (found) void connectTo(found);
-          }} />
-        </div>
-
-        <div className='panel identityPanel'>
-          <span className='eyebrow'>Your identity</span>
-          <h2>{profile.realName || 'Not signed up'}</h2>
-          <p>{profile.bio || 'Create your profile to go live.'}</p>
-          <div className='identityStack'>
-            <div><strong>Phone</strong><span>{profile.phone || 'Required'}</span></div>
-            <div><strong>Building</strong><span>{profile.building || 'Required'}</span></div>
-            <div><strong>Location</strong><span>{profile.locationLabel || 'Required'}</span></div>
-            <div><strong>Signal</strong><span>{profile.signal}</span></div>
-          </div>
-          <div className='tagRow'>{profile.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
-          {socialEntries.length > 0 && <div className='socialRow'>{socialEntries.map(([key, value]) => <span key={key}>{key}: {value}</span>)}</div>}
-          <Link className='ghostButton linkButton' href='/signup'>Edit profile</Link>
-        </div>
-      </section>
-
-      <section className='panel networkPanel'>
-        <div className='sectionHeader'>
-          <div><span className='eyebrow'>Discover</span><h2>{peopleForDisplay.length ? 'Signals around you' : 'No signals yet'}</h2></div>
-          <button className='tinyButton' onClick={() => void refreshNearby()}>Refresh</button>
-        </div>
-
-        <div className='peopleGrid'>
-          {peopleForDisplay.map((person) => (
-            <article className='personCard' key={person.id}>
-              <div className='personTop'>
-                <div className='avatar'>{person.realName.slice(0, 2).toUpperCase()}</div>
-                <div><h3>{person.realName}</h3><span>{person.signal} • {formatDistance(person.distanceMiles)}</span></div>
-              </div>
-              <p>{person.bio}</p>
-              <strong className='buildingLine'>{person.building}</strong>
-              <div className='tagRow'>{person.tags.map((tag) => <span key={`${person.id}-${tag}`}>{tag}</span>)}</div>
-              <div className='personFooter'>
-                <span className={person.isSeed ? 'demoBadge' : 'liveBadge'}>{person.isSeed ? 'demo' : `live • ${timeAgo(person.updatedAt)}`}</span>
-                <button onClick={() => void connectTo(person)}>Connect & share phones</button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className='contactGrid'>
-        <div className='panel contactsPanel'>
-          <div className='sectionHeader'><div><span className='eyebrow'>Connections</span><h2>Phone exchange</h2></div></div>
-          {contacts.length === 0 ? (
-            <p className='emptyText'>Connect with someone nearby. Their phone number appears here after the Norm ping.</p>
-          ) : (
-            <div className='contactList'>
-              {contacts.map((contact) => (
-                <button className={`contactCard ${selectedContact?.id === contact.id ? 'selected' : ''}`} key={contact.id} onClick={() => setSelectedContact(contact)}>
-                  <strong>{contact.name}</strong>
-                  <span>{contact.signal}</span>
-                  <em>{contact.phone || 'Phone not returned yet'}</em>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className='panel chatPanel'>
-          <div className='sectionHeader'>
-            <div><span className='eyebrow'>Chat</span><h2>{selectedContact ? selectedContact.name : 'Select a contact'}</h2></div>
-          </div>
-          {selectedContact ? (
-            <>
-              <div className='phoneShareBox'><strong>Phone shared:</strong> {selectedContact.phone || 'Waiting for phone'}<span>{selectedContact.building}</span></div>
-              <div className='chatMessages'>
-                {chatMessages.length === 0 ? <p>No messages yet.</p> : chatMessages.map((chat) => (
-                  <div className={`chatBubble ${chat.fromId === profile.id ? 'mine' : ''}`} key={chat.id}>
-                    <strong>{chat.fromName}</strong>
-                    <span>{chat.body}</span>
-                  </div>
+      {tab === 'map' && (
+        <section className='tabPanel'>
+          <div className='mapHero'><div><span className='eyebrow'>Map</span><h1>Find nearby signals.</h1><p>Open the map, tap a person, and connect once.</p></div><button className='ghostButton' onClick={() => void refresh()} disabled={!location || busy}>Refresh</button></div>
+          <div className='mapLayout'>
+            <section className='panel mapPanel'><LiveMap selfLocation={location} people={people} isDiscoverable={liveOn} onSelectPerson={(person) => void connect(person)} /></section>
+            <aside className='panel peoplePanel'>
+              <div className='sectionHeader'><div><span className='eyebrow'>Connect</span><h2>{people.length ? 'People around you' : 'No live signals yet'}</h2></div></div>
+              {!liveOn && <div className='emptyText'>Turn on from Home to publish your signal and scan for real nearby people.</div>}
+              <div className='peopleList'>
+                {people.map((person) => (
+                  <article className='personCard' key={person.id}>
+                    <div className='personTop'><div className='avatar'>{person.realName.slice(0, 2).toUpperCase()}</div><div><h3>{person.realName}</h3><span>{person.signal} • {distanceText(person.distanceMiles)}</span></div></div>
+                    <p>{person.bio}</p><strong>{person.building}</strong>
+                    <div className='tagRow'>{person.tags.map((tag) => <span key={`${person.id}-${tag}`}>{tag}</span>)}</div>
+                    <div className='personFooter'><span>live • {timeText(person.updatedAt)}</span><button onClick={() => void connect(person)}>Connect</button></div>
+                  </article>
                 ))}
               </div>
-              <div className='chatComposer'>
-                <input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder='Send a quick message...' onKeyDown={(event) => {
-                  if (event.key === 'Enter') void sendChat();
-                }} />
-                <button onClick={() => void sendChat()}>Send</button>
-              </div>
-            </>
-          ) : <p className='emptyText'>Once you connect, you can send lightweight messages here.</p>}
-        </div>
-      </section>
-
-      {connectionLog.length > 0 && (
-        <section className='panel logPanel'>
-          <span className='eyebrow'>Activity</span>
-          {connectionLog.map((item) => <p key={item}>{item}</p>)}
+            </aside>
+          </div>
         </section>
       )}
 
-      <footer><strong>Norm Network</strong><span>A physical-world signal layer. Built for intentional connection.</span></footer>
+      {tab === 'connections' && (
+        <section className='tabPanel'>
+          <div className='connectionHero'><div><span className='eyebrow'>Connections</span><h1>Chat, contacts, and profile.</h1><p>Contacts on the left, chat in the center, profile controls on the right.</p></div><button className='ghostButton' onClick={() => void enableCues()}>Enable pings</button></div>
+          <div className='connectionLayout'>
+            <section className='panel contactsPanel'>
+              <div className='sectionHeader'><div><span className='eyebrow'>Contacts</span><h2>{contacts.length ? 'Connected' : 'No connections yet'}</h2></div></div>
+              {contacts.length === 0 ? <p className='emptyText'>Connect with someone on the map. Their direct contact appears here after the ping.</p> : <div className='contactList'>{contacts.map((contact) => <button className={`contactCard ${selected?.id === contact.id ? 'selected' : ''}`} key={contact.id} onClick={() => setSelected(contact)}><strong>{contact.name}</strong><span>{contact.signal}</span><em>{contact.phone || 'Waiting for contact'}</em></button>)}</div>}
+            </section>
+            <section className='panel chatPanel'>
+              <div className='sectionHeader'><div><span className='eyebrow'>Chat</span><h2>{selected ? selected.name : 'Select a contact'}</h2></div></div>
+              {selected ? <><div className='phoneShareBox'><strong>Direct contact</strong><span>{selected.phone || 'Waiting'}</span><em>{selected.building}</em></div><div className='chatMessages'>{messages.length === 0 ? <p>No messages yet.</p> : messages.map((chat) => <div className={`chatBubble ${chat.fromId === profile.id ? 'mine' : ''}`} key={chat.id}><strong>{chat.fromName}</strong><span>{chat.body}</span></div>)}</div><div className='chatComposer'><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder='Send a quick message...' onKeyDown={(event) => { if (event.key === 'Enter') void send(); }} /><button onClick={() => void send()}>Send</button></div></> : <p className='emptyText'>Once you connect, lightweight messages appear here.</p>}
+            </section>
+            <section className='panel profilePanel'>
+              <div className='sectionHeader'><div><span className='eyebrow'>Profile</span><h2>Customize signal</h2></div><span className='completionBadge'>{completion}%</span></div>
+              <div className='profileForm'>
+                <label>Real name<input value={profile.realName} onChange={(event) => update('realName', event.target.value)} placeholder='Your real name' /></label>
+                <label>Direct contact<input value={profile.phone} onChange={(event) => update('phone', event.target.value)} placeholder='Best contact' /></label>
+                <label>What are you building?<textarea value={profile.building} onChange={(event) => update('building', event.target.value)} rows={3} placeholder='What people should know about your work' /></label>
+                <label>Bio<textarea value={profile.bio} onChange={(event) => update('bio', event.target.value)} rows={3} placeholder='Short, direct, real' /></label>
+                <label>Location label<input value={profile.locationLabel} onChange={(event) => update('locationLabel', event.target.value)} placeholder='City, event, lobby, campus...' /></label>
+                <div className='formSplit'><label>Signal<select value={profile.signal} onChange={(event) => update('signal', event.target.value)}><option>Builder</option><option>Founder</option><option>Developer</option><option>Designer</option><option>Hardware</option><option>AI Creative</option><option>Investor</option><option>Operator</option><option>Local Explorer</option></select></label><label>Radius<select value={profile.radius} onChange={(event) => update('radius', Number(event.target.value))}><option value={1}>1 mile</option><option value={5}>5 miles</option><option value={10}>10 miles</option><option value={25}>25 miles</option></select></label></div>
+                <label>Tags<input value={profile.tags.join(', ')} onChange={(event) => update('tags', cleanTags(event.target.value))} placeholder='AI, hardware, startups' /></label>
+                <div className='socialGrid'><label>Instagram<input value={profile.socials.instagram} onChange={(event) => updateSocial('instagram', event.target.value)} placeholder='@username' /></label><label>X<input value={profile.socials.x} onChange={(event) => updateSocial('x', event.target.value)} placeholder='@username' /></label><label>LinkedIn<input value={profile.socials.linkedin} onChange={(event) => updateSocial('linkedin', event.target.value)} placeholder='linkedin.com/in/...' /></label><label>Website<input value={profile.socials.website} onChange={(event) => updateSocial('website', event.target.value)} placeholder='https://...' /></label></div>
+                <div className='profilePreview'><strong>{profile.realName || 'Your name'}</strong><span>{profile.signal} • {profile.locationLabel || 'Location label'}</span><p>{profile.bio || 'Your bio preview appears here.'}</p><div className='tagRow'>{profile.tags.map((tag) => <span key={`profile-${tag}`}>{tag}</span>)}</div>{socials.length > 0 && <em>{socials.length} social link{socials.length > 1 ? 's' : ''} saved</em>}</div>
+              </div>
+            </section>
+          </div>
+        </section>
+      )}
+
+      <nav className='bottomTabs' aria-label='Primary tabs'>
+        {tabData.map((item) => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)} aria-current={tab === item.id ? 'page' : undefined}><strong>{item.label}</strong><span>{item.detail}</span></button>)}
+      </nav>
     </main>
   );
 }
