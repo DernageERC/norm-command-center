@@ -12,7 +12,6 @@ type MapPerson = {
   lat?: number;
   lng?: number;
   distanceMiles?: number | null;
-  isSeed?: boolean;
 };
 
 type LiveMapProps = {
@@ -22,13 +21,26 @@ type LiveMapProps = {
   onSelectPerson?: (person: MapPerson) => void;
 };
 
-function offsetSeed(base: Coordinates, index: number): Coordinates {
+function offsetFallback(base: Coordinates, index: number): Coordinates {
   const angle = (index + 1) * 1.4;
   const radius = 0.006 + index * 0.0028;
   return {
     lat: base.lat + Math.cos(angle) * radius,
     lng: base.lng + Math.sin(angle) * radius
   };
+}
+
+function hasCoordinates(person: MapPerson) {
+  return Number.isFinite(person.lat) && Number.isFinite(person.lng);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 export default function LiveMap({ selfLocation, people, isDiscoverable, onSelectPerson }: LiveMapProps) {
@@ -81,35 +93,38 @@ export default function LiveMap({ selfLocation, people, isDiscoverable, onSelect
       if (selfLocation) {
         leaflet.circle([selfLocation.lat, selfLocation.lng], {
           radius: 805,
-          color: '#a7ff6b',
-          fillColor: '#a7ff6b',
+          color: '#9bdcff',
+          fillColor: '#9bdcff',
           fillOpacity: 0.08,
           weight: 1
         }).addTo(layer);
 
         leaflet.circleMarker([selfLocation.lat, selfLocation.lng], {
           radius: 12,
-          color: '#050607',
-          fillColor: isDiscoverable ? '#a7ff6b' : '#f7f7f2',
+          color: '#050505',
+          fillColor: isDiscoverable ? '#9bdcff' : '#ffffff',
           fillOpacity: 1,
-          weight: 3
+          weight: 4
         })
           .bindPopup(`<strong>You</strong><br />${isDiscoverable ? 'Discoverable' : 'Private'}`)
           .addTo(layer);
       }
 
       people.slice(0, 20).forEach((person, index) => {
-        const coords = person.lat && person.lng ? { lat: person.lat, lng: person.lng } : offsetSeed(center, index);
+        const coords = hasCoordinates(person)
+          ? { lat: person.lat as number, lng: person.lng as number }
+          : offsetFallback(center, index);
+
         const marker = leaflet.circleMarker([coords.lat, coords.lng], {
-          radius: person.isSeed ? 8 : 10,
-          color: person.isSeed ? '#ffe08a' : '#a7ff6b',
-          fillColor: person.isSeed ? '#ffe08a' : '#a7ff6b',
-          fillOpacity: 0.9,
-          weight: 2
+          radius: 10,
+          color: '#ffffff',
+          fillColor: '#9bdcff',
+          fillOpacity: 0.95,
+          weight: 3
         });
 
         marker
-          .bindPopup(`<strong>${person.realName}</strong><br />${person.signal}<br />${person.building}`)
+          .bindPopup(`<strong>${escapeHtml(person.realName)}</strong><br />${escapeHtml(person.signal)}<br />${escapeHtml(person.building)}`)
           .on('click', () => onSelectPerson?.(person))
           .addTo(layer);
       });
