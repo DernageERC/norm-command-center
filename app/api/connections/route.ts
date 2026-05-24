@@ -27,7 +27,7 @@ function clean(value: unknown, fallback: string, max = 160) {
 function prune() {
   const cutoff = Date.now() - TTL_MS;
   for (const [id, requests] of store()) {
-    const active = requests.filter((request) => request.createdAt > cutoff);
+    const active = requests.filter((connection) => connection.createdAt > cutoff);
     if (active.length) store().set(id, active);
     else store().delete(id);
   }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing sender or receiver.' }, { status: 400 });
   }
 
-  const request: ConnectRequest = {
+  const connectionRequest: ConnectRequest = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     fromId,
     toId,
@@ -61,9 +61,9 @@ export async function POST(request: NextRequest) {
   };
 
   const current = store().get(toId) || [];
-  store().set(toId, [request, ...current].slice(0, 12));
+  store().set(toId, [connectionRequest, ...current].slice(0, 12));
 
-  return NextResponse.json({ ok: true, request });
+  return NextResponse.json({ ok: true, request: connectionRequest });
 }
 
 export async function DELETE(request: NextRequest) {
