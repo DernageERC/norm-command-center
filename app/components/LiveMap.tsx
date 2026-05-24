@@ -7,11 +7,15 @@ type Coordinates = { lat: number; lng: number };
 type MapPerson = {
   id: string;
   realName: string;
+  bio: string;
   building: string;
+  locationLabel: string;
   signal: string;
+  tags: string[];
   lat?: number;
   lng?: number;
   distanceMiles?: number | null;
+  updatedAt?: number;
 };
 
 type LiveMapProps = {
