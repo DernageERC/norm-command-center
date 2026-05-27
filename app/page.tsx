@@ -215,12 +215,27 @@ export default function Home() {
     setSignedIn(true);
   }
 
-  async function publish(nextLocation: Coordinates, nextProfile = profile) {
-    await live({ action: 'publish', ...nextProfile, signal: 'Builder', building: nextProfile.bio, tags: ['network'], radius: GLOBAL_RADIUS_MILES, lat: nextLocation.lat, lng: nextLocation.lng });
+  async function publish(nextLocation: Coordinates, _nextProfile = profile) {
+    const locationResponse = await fetch('/api/location/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: nextLocation.lat, lng: nextLocation.lng, accuracy: nextLocation.accuracy ?? 0 }),
+    });
+
+    const locationData = await locationResponse.json().catch(() => ({}));
+    if (!locationResponse.ok) throw new Error(locationData?.error || 'Location update failed');
+
+    await fetch('/api/availability', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open_connect', is_visible: true, expires_in_minutes: 60 }),
+    });
   }
   async function refresh(nextLocation = location, nextProfile = profile) {
     if (!nextLocation || !nextProfile.id) return;
-    const data = await live<{ people?: Person[] }>({ action: 'nearby', lat: nextLocation.lat, lng: nextLocation.lng, radius: GLOBAL_RADIUS_MILES, exclude: nextProfile.id });
+    const response = await fetch(`/api/discover?lat=${nextLocation.lat}&lng=${nextLocation.lng}`, { cache: 'no-store' });
+    const data = (await response.json()) as { people?: Person[]; error?: string };
+    if (!response.ok) throw new Error(data.error || 'Discover failed');
     setNearby(data.people || []);
   }
   async function refreshInbox(id = profile.id) {
