@@ -1102,3 +1102,88 @@ input, select, textarea {
 .avatarUploader{display:flex;align-items:center;gap:12px;}
 .avatarPreview,.avatarPlaceholder{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;background:rgba(12,18,25,0.9);object-fit:cover;}
 .fileButton{display:inline-flex;align-items:center;justify-content:center;}
+
+
+/* --- Exclusive flat pass (centered + less bubble) --- */
+.shell {
+  width: min(980px, calc(100% - 28px));
+}
+
+.appHeader,
+.sectionHeader,
+.brandLockup,
+.profileTop,
+.homeActions {
+  justify-content: center;
+  text-align: center;
+}
+
+.panel,
+.phoneFrame,
+.launchCard,
+.connectHero {
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    rgba(5, 8, 12, 0.9);
+}
+
+.panel {
+  margin-inline: auto;
+  max-width: 980px;
+}
+
+.profileForm,
+.peopleList,
+.contactList,
+.chatMessages {
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+.personCard,
+.contactCard,
+.chatBox,
+.simpleStrip article {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(180, 202, 220, 0.22);
+}
+
+.primaryButton,
+.ghostButton,
+.connectButton,
+.chatComposer button,
+.backLink {
+  border-radius: 10px;
+}
+
+.bottomTabs {
+  border-radius: 12px;
+  background: rgba(4, 6, 10, 0.94);
+}
+
+.bottomTabs button {
+  border-radius: 8px;
+}
+
+.chatBubble,
+.chatBubble.mine {
+  border-radius: 10px;
+}
+
+.homeHero,
+.introPanel,
+.connectHero,
+.profilePanel {
+  text-align: center;
+}
+
+.emptyText,
+.sectionHeader p,
+.profilePreview p,
+.homeHero p,
+.connectHero p {
+  max-width: 760px;
+  margin-inline: auto;
+}
