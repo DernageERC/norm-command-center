@@ -1045,3 +1045,54 @@
     display: none;
   }
 }
+
+
+/* UX polish pass: simpler, clearer, futuristic black + baby blue + silver */
+.appHeader { margin-bottom: 14px; }
+.brandLockup strong { font-size: 1rem; letter-spacing: -0.01em; }
+.brandLockup span { color: var(--blue); }
+
+.panel, .signalCard, .metricCard, .personCard, .contactCard, .profilePreview, .chatBubble {
+  border-color: var(--line);
+  background:
+    linear-gradient(165deg, rgba(18,28,38,0.92), rgba(8,12,16,0.92));
+}
+
+h1 { letter-spacing: -0.03em; }
+.signalIntro h1, .mapHero h1, .connectionHero h1 { font-size: clamp(1.35rem, 3.8vw, 1.9rem); margin-bottom: 8px; }
+.signalIntro p, .mapHero p, .connectionHero p, .emptyText { color: var(--soft); line-height: 1.45; }
+
+.bottomTabs {
+  border: 1px solid var(--line);
+  background: rgba(10, 16, 22, 0.92);
+  backdrop-filter: blur(14px);
+}
+.bottomTabs button { min-height: 62px; }
+.bottomTabs button strong { font-size: 0.95rem; }
+.bottomTabs button span { display:none; }
+.bottomTabs button.active {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 0 0 1px rgba(146,221,255,0.35), 0 0 24px rgba(89,201,255,0.24);
+}
+
+.statusPill, .ghostButton, .chatComposer button {
+  border: 1px solid var(--line);
+  background: rgba(12,18,25,0.9);
+  color: var(--soft);
+}
+.statusPill.isLive, .powerButton.isOn {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 24px rgba(146,221,255,0.28);
+}
+
+input, select, textarea {
+  background: rgba(4,8,12,0.92);
+  border-color: rgba(174, 195, 212, 0.36);
+}
+
+@media (max-width: 760px) {
+  .shell { padding-bottom: 104px; }
+  .mapLayout, .connectionLayout { gap: 12px; }
+  .panel { border-radius: 18px; }
+  .personCard, .contactCard { padding: 12px; }
+}

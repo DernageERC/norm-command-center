@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Norm Network',
   description: 'Live proximity networking for real-world builders.',
   applicationName: 'Norm Network',
+  manifest: '/manifest.webmanifest',
   openGraph: {
     title: 'Norm Network',
     description: 'A live map for real-world connection.',
