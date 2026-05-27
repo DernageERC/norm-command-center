@@ -122,6 +122,38 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!signedIn) return;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/me', { cache: 'no-store' });
+        if (res.status === 401) return;
+        const data = await res.json();
+        const p = data?.profile;
+        if (p) {
+          const next = {
+            ...defaultProfile,
+            ...profile,
+            realName: p.display_name || profile.realName,
+            bio: p.bio || profile.bio,
+            locationLabel: p.city || profile.locationLabel,
+            avatarUrl: p.photo_url || profile.avatarUrl,
+          };
+          setProfile(next);
+          setDraftProfile(next);
+          setReady(complete(next));
+        }
+
+        if (!p?.display_name || !p?.city) {
+          window.location.href = '/onboarding';
+        }
+      } catch {
+        // local fallback
+      }
+    })();
+  }, [signedIn]);
+
   const people = useMemo(() => nearby.filter((person) => person.id !== profile.id).slice(0, 50), [nearby, profile.id]);
   const contacts = useMemo<Contact[]>(() => {
     const map = new Map<string, Contact>();
@@ -146,13 +178,32 @@ export default function Home() {
     };
     reader.readAsDataURL(file);
   }
-  function saveProfile() {
+  async function saveProfile() {
     const next = { ...draftProfile, phone: draftProfile.phone || phoneGate, id: draftProfile.id || createId() };
     setProfile(next);
     setDraftProfile(next);
     setReady(complete(next));
     window.localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
-    setNotice('Profile saved');
+
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          realName: next.realName,
+          bio: next.bio,
+          locationLabel: next.locationLabel,
+          avatarUrl: next.avatarUrl
+        })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Profile sync failed');
+      }
+      setNotice('Profile saved');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Profile sync failed');
+    }
   }
   function enterWithPhone() {
     const clean = phoneGate.trim();
