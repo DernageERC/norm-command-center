@@ -76,18 +76,6 @@ function getPosition(): Promise<Coordinates> {
     );
   });
 }
-async function live<T>(payload: Record<string, unknown>) {
-  const response = await fetch('/api/live', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    cache: 'no-store'
-  });
-  const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || 'Action failed');
-  return data;
-}
-
 export default function Home() {
   const [tab, setTab] = useState<Tab>('home');
   const [profile, setProfile] = useState<Profile>(defaultProfile);
@@ -260,7 +248,13 @@ export default function Home() {
   }
   async function turnOff() {
     setLiveOn(false); setNearby([]); setError(''); setNotice('OFF');
-    if (profile.id) await live({ action: 'disconnect', id: profile.id }).catch(() => undefined);
+    if (profile.id) {
+      await fetch('/api/availability', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'hidden', is_visible: false })
+      }).catch(() => undefined);
+    }
   }
   async function toggle() { if (!ready) { setTab('profile'); return; } if (liveOn) await turnOff(); else await turnOn(); }
 
