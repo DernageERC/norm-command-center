@@ -1096,3 +1096,9 @@ input, select, textarea {
   .panel { border-radius: 18px; }
   .personCard, .contactCard { padding: 12px; }
 }
+
+
+.avatarPic{width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid var(--line);}
+.avatarUploader{display:flex;align-items:center;gap:12px;}
+.avatarPreview,.avatarPlaceholder{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;background:rgba(12,18,25,0.9);object-fit:cover;}
+.fileButton{display:inline-flex;align-items:center;justify-content:center;}
