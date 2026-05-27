@@ -39,7 +39,7 @@ type Connection = {
   createdAt: number;
 };
 type Chat = { id: string; fromId: string; toId: string; fromName: string; body: string; createdAt: number };
-type Contact = { id: string; name: string; phone: string };
+type Contact = { id: string; name: string; phone: string; connectionId?: string };
 type Tab = 'home' | 'chat' | 'profile';
 
 const PROFILE_KEY = 'norm-network-profile';
@@ -240,8 +240,10 @@ export default function Home() {
   }
   async function refreshInbox(id = profile.id) {
     if (!id) return;
-    const data = await live<{ requests?: Connection[] }>({ action: 'inbox', id });
-    const rows = data.requests || [];
+    const response = await fetch('/api/connections', { cache: 'no-store' });
+    const data = (await response.json()) as { connections?: Connection[]; error?: string };
+    if (!response.ok) throw new Error(data.error || 'Could not load connections');
+    const rows = data.connections || [];
     rows.forEach((row) => { if (!seen.current.has(row.id)) seen.current.add(row.id); });
     setConnections(rows);
   }
@@ -266,20 +268,29 @@ export default function Home() {
     setError('');
     try {
       if (!ready) throw new Error('Save profile first.');
-      const data = await live<{ connection: Connection }>({
-        action: 'connect', fromId: profile.id, toId: person.id, fromName: profile.realName, fromPhone: profile.phone,
-        fromBuilding: profile.bio, fromSignal: 'Builder', toName: person.realName, message: `${profile.realName} connected with you on Norm.`
+      const response = await fetch('/api/connection-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_user_id: person.id, message: `${profile.realName} connected with you on Norm.` })
       });
-      setConnections((current) => [data.connection, ...current.filter((item) => item.id !== data.connection.id)]);
-      setSelected({ id: person.id, name: person.realName, phone: data.connection.toPhone });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Could not connect');
+      await refreshInbox(profile.id);
+      setSelected({ id: person.id, name: person.realName, phone: '', connectionId: data?.connection?.id });
       setTab('chat');
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not connect.'); }
   }
   async function send() {
-    if (!selected || !draft.trim()) return;
+    if (!selected?.connectionId || !draft.trim()) return;
     const body = draft.trim(); setDraft('');
-    const data = await live<{ message: Chat }>({ action: 'chat:send', fromId: profile.id, toId: selected.id, fromName: profile.realName, body });
-    setMessages((current) => [...current, data.message]);
+    const response = await fetch(`/api/messages/${selected.connectionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body })
+    });
+    const data = (await response.json()) as { message?: Chat; error?: string };
+    if (!response.ok) throw new Error(data.error || 'Message failed');
+    if (data.message) setMessages((current) => [...current, data.message]);
   }
 
   useEffect(() => {
@@ -289,9 +300,11 @@ export default function Home() {
   }, [liveOn, location, profile, ready]);
 
   useEffect(() => {
-    if (!selected || !profile.id) return;
+    if (!selected?.connectionId || !profile.id) return;
     const load = async () => {
-      const data = await live<{ messages?: Chat[] }>({ action: 'chat:get', a: profile.id, b: selected.id });
+      const response = await fetch(`/api/messages/${selected.connectionId}`, { cache: 'no-store' });
+      const data = (await response.json()) as { messages?: Chat[]; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Failed to load messages');
       setMessages(data.messages || []);
     };
     void load();
